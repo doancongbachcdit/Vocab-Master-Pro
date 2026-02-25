@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, where, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, collection, addDoc, getDocs, deleteDoc, doc, query, where, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Thông tin dự án của bạn
 const firebaseConfig = {
@@ -15,7 +15,11 @@ const firebaseConfig = {
 // Khởi tạo
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Bật Offline Persistence (Lưu cache offline)
+export const db = initializeFirestore(app, {
+    localCache: persistentLocalCache()
+});
 
 // "Xuất khẩu" các hàm này để file app.js có thể lấy dùng
 export { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut };
