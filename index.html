@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,9 +9,11 @@
     <meta name="theme-color" content="#4f46e5">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-    <div id="userPanel" style="background:#fff; padding:15px; border-radius:12px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05)">
+    <div id="userPanel"
+        style="background:#fff; padding:15px; border-radius:12px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05)">
         <div id="userInfo" style="font-weight: 500;">Bạn chưa đăng nhập</div>
         <button id="btnLogin" class="btn btn-primary" style="width:auto; margin:0">Đăng nhập Google</button>
         <button id="btnLogout" class="btn btn-outline" style="width:auto; margin:0; display:none">Đăng xuất</button>
@@ -41,10 +44,10 @@
                     </div>
                     <div id="qPhonetic" class="phonetic-display blur-text">---</div>
                 </div>
-                
+
                 <div class="grid-options" id="qOptions"></div>
                 <div id="qMsg" style="text-align:center; height:25px; margin:15px 0; font-weight:bold"></div>
-                
+
                 <div style="display:flex; gap:10px">
                     <button class="btn btn-outline" id="btnPrev" disabled>⬅️ Xem lại</button>
                     <button class="btn btn-primary" id="btnNext">Tiếp theo ➡️</button>
@@ -70,7 +73,10 @@
             <h3>➕ Thêm Từ Mới</h3>
             <div style="display:flex; gap:10px">
                 <input type="text" id="inpWord" placeholder="Từ (VD: Cat / 你好)" style="flex:2">
-                <select id="inpLang" style="flex:1"><option value="EN">Anh</option><option value="CN">Trung</option></select>
+                <select id="inpLang" style="flex:1">
+                    <option value="EN">Anh</option>
+                    <option value="CN">Trung</option>
+                </select>
             </div>
             <input type="text" id="inpPhonetic" placeholder="Phiên âm (VD: /kæt/ hoặc nǐ hǎo)">
             <input type="text" id="inpMeaning" placeholder="Nghĩa (VD: Con mèo)">
@@ -90,7 +96,7 @@
             <div style="display:flex; gap:10px">
                 <button class="btn btn-outline" id="btnExportJSON">⬇️ Tải Backup (JSON)</button>
             </div>
-            </div>
+        </div>
     </div>
 
     <div id="list" class="content">
@@ -101,6 +107,16 @@
     </div>
 
     <script type="module" src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker Registered:', reg.scope))
+                    .catch(err => console.log('Service Worker Error:', err));
+            });
+        }
+    </script>
 
 </body>
+
 </html>
