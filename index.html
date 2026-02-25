@@ -12,21 +12,21 @@
 
     <div id="userPanel" style="background:#fff; padding:15px; border-radius:12px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05)">
         <div id="userInfo" style="font-weight: 500;">Bạn chưa đăng nhập</div>
-        <button id="btnLogin" class="btn btn-primary" style="width:auto; margin:0" onclick="loginGoogle()">Đăng nhập Google</button>
-        <button id="btnLogout" class="btn btn-outline" style="width:auto; margin:0; display:none" onclick="logoutGoogle()">Đăng xuất</button>
+        <button id="btnLogin" class="btn btn-primary" style="width:auto; margin:0">Đăng nhập Google</button>
+        <button id="btnLogout" class="btn btn-outline" style="width:auto; margin:0; display:none">Đăng xuất</button>
     </div>
 
-    <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('quiz')">🧠 Học Tập</button>
-        <button class="tab-btn" onclick="switchTab('data')">📂 Dữ Liệu</button>
-        <button class="tab-btn" onclick="switchTab('list')">📚 Danh Sách</button>
+    <div class="tabs" id="mainTabs">
+        <button class="tab-btn active" data-tab="quiz">🧠 Học Tập</button>
+        <button class="tab-btn" data-tab="data">📂 Dữ Liệu</button>
+        <button class="tab-btn" data-tab="list">📚 Danh Sách</button>
     </div>
 
     <div id="quiz" class="content active">
         <div class="card">
             <div class="srs-info">
                 <span id="reviewStatus">Đang tải...</span>
-                <select id="quizFilter" onchange="resetQuiz()" style="width:auto; padding:5px; margin:0; font-size:0.9em">
+                <select id="quizFilter" style="width:auto; padding:5px; margin:0; font-size:0.9em">
                     <option value="ALL">Tất cả</option>
                     <option value="EN">Tiếng Anh</option>
                     <option value="CN">Tiếng Trung</option>
@@ -36,18 +36,18 @@
             <div id="quizArea" style="display:none">
                 <div class="word-container">
                     <div>
-                        <span class="word-display" id="qWord" onclick="speakCurrent()">---</span>
-                        <button class="btn-speak" onclick="speakCurrent()">🔊</button>
+                        <span class="word-display" id="qWord">---</span>
+                        <button class="btn-speak" id="btnSpeak">🔊</button>
                     </div>
-                    <div id="qPhonetic" class="phonetic-display blur-text" onclick="this.classList.add('revealed')">---</div>
+                    <div id="qPhonetic" class="phonetic-display blur-text">---</div>
                 </div>
                 
                 <div class="grid-options" id="qOptions"></div>
                 <div id="qMsg" style="text-align:center; height:25px; margin:15px 0; font-weight:bold"></div>
                 
                 <div style="display:flex; gap:10px">
-                    <button class="btn btn-outline" id="btnPrev" onclick="prevQuestion()" disabled>⬅️ Xem lại</button>
-                    <button class="btn btn-primary" id="btnNext" onclick="nextQuestion()">Tiếp theo ➡️</button>
+                    <button class="btn btn-outline" id="btnPrev" disabled>⬅️ Xem lại</button>
+                    <button class="btn btn-primary" id="btnNext">Tiếp theo ➡️</button>
                 </div>
             </div>
 
@@ -55,12 +55,12 @@
                 <div style="font-size: 3rem;">🎉</div>
                 <h3>Tuyệt vời!</h3>
                 <p>Bạn đã hoàn thành bài ôn tập hôm nay.</p>
-                <button class="btn btn-outline" onclick="forceReviewMode()">💪 Ôn tập ngẫu nhiên</button>
+                <button class="btn btn-outline" id="btnForceReview">💪 Ôn tập ngẫu nhiên</button>
             </div>
 
             <div id="emptyArea" style="text-align:center; padding:30px; display:none">
                 <p>Chưa có dữ liệu. Hãy thêm từ vựng để bắt đầu!</p>
-                <button class="btn btn-primary" onclick="switchTab('data')">Thêm từ ngay</button>
+                <button class="btn btn-primary" id="btnGoToData">Thêm từ ngay</button>
             </div>
         </div>
     </div>
@@ -74,28 +74,28 @@
             </div>
             <input type="text" id="inpPhonetic" placeholder="Phiên âm (VD: /kæt/ hoặc nǐ hǎo)">
             <input type="text" id="inpMeaning" placeholder="Nghĩa (VD: Con mèo)">
-            <button class="btn btn-primary" onclick="addWord()">Lưu Lên Mây</button>
+            <button class="btn btn-primary" id="btnAddWord">Lưu Lên Mây</button>
             <p id="addStatus" style="text-align:center; color:var(--success); margin:5px 0"></p>
         </div>
 
         <div class="card">
             <h3>📂 Quản lý Dữ liệu</h3>
             <div style="display:flex; gap:10px; margin-bottom:10px">
-                <button class="btn btn-outline" onclick="downloadSample()">📥 File mẫu Mới</button>
+                <button class="btn btn-outline" id="btnDownloadSample">📥 File mẫu Mới</button>
             </div>
             <div style="display:flex; gap:10px; margin-bottom:15px">
                 <input type="file" id="csvFile" accept=".csv" style="margin-bottom:0">
-                <button class="btn btn-success" onclick="importCSV()" style="width:auto">Nạp CSV</button>
+                <button class="btn btn-success" id="btnImportCSV" style="width:auto">Nạp CSV</button>
             </div>
             <div style="display:flex; gap:10px">
-                <button class="btn btn-outline" onclick="exportJSON()">⬇️ Tải Backup (JSON)</button>
+                <button class="btn btn-outline" id="btnExportJSON">⬇️ Tải Backup (JSON)</button>
             </div>
             </div>
     </div>
 
     <div id="list" class="content">
         <div class="card">
-            <input type="text" id="search" placeholder="🔍 Tìm kiếm..." onkeyup="renderList()">
+            <input type="text" id="search" placeholder="🔍 Tìm kiếm...">
             <div id="listContainer" style="max-height:500px; overflow-y:auto"></div>
         </div>
     </div>

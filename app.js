@@ -12,7 +12,77 @@ let historyIndex = -1;
 let isCramMode = false;
 let currentQuizItem = null;
 
-// 3. LOGIC ĐĂNG NHẬP
+// 3. LOGIC DOM & SỰ KIỆN KHỞI TẠO
+document.addEventListener('DOMContentLoaded', () => {
+    // Auth Event Listeners
+    document.getElementById('btnLogin').addEventListener('click', () => {
+        signInWithPopup(auth, new GoogleAuthProvider()).catch(err => alert("Lỗi: " + err.message));
+    });
+    
+    document.getElementById('btnLogout').addEventListener('click', () => {
+        signOut(auth);
+    });
+
+    // Navigation and Tabs
+    const mainTabs = document.getElementById('mainTabs');
+    if (mainTabs) {
+        mainTabs.addEventListener('click', (e) => {
+            if (e.target.classList.contains('tab-btn')) {
+                const tabId = e.target.getAttribute('data-tab');
+                switchTab(tabId);
+            }
+        });
+    }
+
+    // Quiz Elements
+    document.getElementById('quizFilter').addEventListener('change', resetQuiz);
+    document.getElementById('qWord').addEventListener('click', speakCurrent);
+    document.getElementById('btnSpeak').addEventListener('click', speakCurrent);
+    document.getElementById('qPhonetic').addEventListener('click', (e) => e.target.classList.add('revealed'));
+    document.getElementById('btnPrev').addEventListener('click', prevQuestion);
+    document.getElementById('btnNext').addEventListener('click', nextQuestion);
+    document.getElementById('btnForceReview').addEventListener('click', forceReviewMode);
+    document.getElementById('btnGoToData').addEventListener('click', () => switchTab('data'));
+    
+    // Data Elements
+    document.getElementById('btnAddWord').addEventListener('click', addWord);
+    document.getElementById('btnDownloadSample').addEventListener('click', downloadSample);
+    document.getElementById('btnImportCSV').addEventListener('click', importCSV);
+    document.getElementById('btnExportJSON').addEventListener('click', () => exportJSON(cachedWords));
+
+    // List Search Element
+    const searchInput = document.getElementById('search');
+    searchInput.addEventListener('input', renderList);
+
+    // Event Delegation cho Quiz Options
+    document.getElementById('qOptions').addEventListener('click', (e) => {
+        if(e.target.classList.contains('opt-btn') && !e.target.disabled) {
+            const optId = e.target.getAttribute('data-id');
+            const qData = quizHistory[historyIndex];
+            const selectedOpt = qData.options.find(opt => opt.id === optId);
+            if (selectedOpt) {
+                handleAnswer(e.target, selectedOpt, qData.correct);
+            }
+        }
+    });
+
+    // Event Delegation cho List Container (Âm thanh và Xóa)
+    document.getElementById('listContainer').addEventListener('click', (e) => {
+        const speakBtn = e.target.closest('.btn-list-speak');
+        const deleteBtn = e.target.closest('.btn-list-delete');
+        
+        if (speakBtn) {
+            const w = speakBtn.getAttribute('data-w');
+            const l = speakBtn.getAttribute('data-l');
+            speakText(w, l);
+        } else if (deleteBtn) {
+            const id = deleteBtn.getAttribute('data-id');
+            deleteWord(id);
+        }
+    });
+});
+
+// 4. LOGIC ĐĂNG NHẬP
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -27,14 +97,11 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('btnLogin').style.display = 'block';
         document.getElementById('btnLogout').style.display = 'none';
         document.getElementById('reviewStatus').innerHTML = "Vui lòng đăng nhập!";
-        window.renderList();
+        renderList();
     }
 });
 
-window.loginGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(err => alert("Lỗi: " + err.message));
-window.logoutGoogle = () => signOut(auth);
-
-// 4. DATABASE FIREBASE
+// 5. DATABASE FIREBASE
 async function loadDataFromCloud() {
     document.getElementById('reviewStatus').innerHTML = "⏳ Đang đồng bộ mây...";
     try {
@@ -43,13 +110,13 @@ async function loadDataFromCloud() {
         cachedWords = [];
         snap.forEach(doc => cachedWords.push({ id: doc.id, ...doc.data() }));
         
-        window.updateSRSStatus();
-        if(document.getElementById('list').classList.contains('active')) window.renderList();
-        if(document.getElementById('quiz').classList.contains('active')) window.resetQuiz();
+        updateSRSStatus();
+        if(document.getElementById('list').classList.contains('active')) renderList();
+        if(document.getElementById('quiz').classList.contains('active')) resetQuiz();
     } catch (error) { alert("Lỗi tải dữ liệu: " + error.message); }
 }
 
-window.addWord = async function() {
+async function addWord() {
     if(!currentUser) return alert("Đăng nhập để lưu từ!");
     const w = document.getElementById('inpWord').value.trim();
     const m = document.getElementById('inpMeaning').value.trim();
@@ -73,23 +140,23 @@ window.addWord = async function() {
         
         document.getElementById('addStatus').innerText = "✅ Đã lưu!";
         setTimeout(()=>document.getElementById('addStatus').innerText="", 2000);
-        window.updateSRSStatus();
+        updateSRSStatus();
     } catch (e) { alert("Lỗi: " + e.message); }
 }
 
-window.deleteWord = async function(id) {
+async function deleteWord(id) {
     if(confirm("Xóa vĩnh viễn?")) { 
         try {
             await deleteDoc(doc(db, "words", id));
             cachedWords = cachedWords.filter(x => x.id !== id);
-            window.renderList(); 
-            window.updateSRSStatus(); 
+            renderList(); 
+            updateSRSStatus(); 
         } catch (e) { alert("Lỗi xóa!"); }
     }
 }
 
-// 5. QUIZ VÀ SRS
-window.updateSRSStatus = function() {
+// 6. QUIZ VÀ SRS
+function updateSRSStatus() {
     if(!currentUser) return;
     const now = Date.now();
     const filter = document.getElementById('quizFilter').value;
@@ -101,18 +168,16 @@ window.updateSRSStatus = function() {
         : `<span style="color:var(--success)">Đã học xong!</span>`;
 }
 
-// Gắn hàm âm thanh từ file utils
-window.speakCurrent = () => { if(currentQuizItem) speakText(currentQuizItem.w, currentQuizItem.l); }
-window.speakText = speakText;
+function speakCurrent() { if(currentQuizItem) speakText(currentQuizItem.w, currentQuizItem.l); }
 
-window.resetQuiz = function() { quizHistory = []; historyIndex = -1; isCramMode = false; window.nextQuestion(); }
+function resetQuiz() { quizHistory = []; historyIndex = -1; isCramMode = false; nextQuestion(); }
 
-window.nextQuestion = function() {
+function nextQuestion() {
     if(!currentUser) return;
     if(historyIndex < quizHistory.length - 1) {
         historyIndex++; renderQuestion(quizHistory[historyIndex]); return;
     }
-    window.updateSRSStatus();
+    updateSRSStatus();
     let questionItem;
     if (dueWords.length > 0) {
         isCramMode = false;
@@ -126,14 +191,14 @@ window.nextQuestion = function() {
             return;
         } else {
             const pool = document.getElementById('quizFilter').value === 'ALL' ? cachedWords : cachedWords.filter(x => x.l === document.getElementById('quizFilter').value);
-            if (pool.length < 4) return window.showEmpty();
+            if (pool.length < 4) return showEmpty();
             questionItem = pool[Math.floor(Math.random() * pool.length)];
         }
     }
-    if(!questionItem) return window.showEmpty();
+    if(!questionItem) return showEmpty();
 
     const pool = document.getElementById('quizFilter').value === 'ALL' ? cachedWords : cachedWords.filter(x => x.l === document.getElementById('quizFilter').value);
-    if (pool.length < 4) return window.showEmpty();
+    if (pool.length < 4) return showEmpty();
 
     const distractors = pool.filter(x => x.id !== questionItem.id).sort(() => 0.5 - Math.random()).slice(0, 3);
     const options = [questionItem, ...distractors].sort(() => 0.5 - Math.random());
@@ -147,7 +212,7 @@ window.nextQuestion = function() {
     renderQuestion(qData);
 }
 
-window.prevQuestion = function() { if(historyIndex > 0) { historyIndex--; renderQuestion(quizHistory[historyIndex]); } }
+function prevQuestion() { if(historyIndex > 0) { historyIndex--; renderQuestion(quizHistory[historyIndex]); } }
 
 function renderQuestion(q) {
     currentQuizItem = q.correct;
@@ -162,8 +227,9 @@ function renderQuestion(q) {
     
     q.options.forEach(opt => {
         const btn = document.createElement('button');
-        btn.className = 'opt-btn'; btn.innerText = opt.m;
-        btn.onclick = () => handleAnswer(btn, opt, q.correct);
+        btn.className = 'opt-btn'; 
+        btn.innerText = opt.m;
+        btn.setAttribute('data-id', opt.id); // For event delegation
         
         if (q.isAnswered) {
             btn.disabled = true;
@@ -201,6 +267,7 @@ async function handleAnswer(btn, selected, correct) {
         }
     } else {
         btn.classList.add('wrong');
+        // Because of event delegation, we re-find the correct button to style it
         document.querySelectorAll('.opt-btn').forEach(b => { if(b.innerText === correct.m) b.classList.add('correct'); });
         document.getElementById('qMsg').innerHTML = "<span style='color:var(--danger)'>Sai rồi!</span>";
         if (!isCramMode) await updateWordSRS(correct.id, 0, 0);
@@ -212,49 +279,60 @@ async function updateWordSRS(id, newLevel, newNextReview) {
         await updateDoc(doc(db, "words", id), { level: newLevel, nextReview: newNextReview });
         const wordInRam = cachedWords.find(w => w.id === id);
         if (wordInRam) { wordInRam.level = newLevel; wordInRam.nextReview = newNextReview; }
-        window.updateSRSStatus();
+        updateSRSStatus();
     } catch (error) { console.error("Lỗi đồng bộ SRS", error); }
 }
 
-window.forceReviewMode = function() { isCramMode = true; window.nextQuestion(); }
-window.showEmpty = function() { document.getElementById('quizArea').style.display = 'none'; document.getElementById('emptyArea').style.display = 'block'; }
+function forceReviewMode() { isCramMode = true; nextQuestion(); }
+function showEmpty() { document.getElementById('quizArea').style.display = 'none'; document.getElementById('emptyArea').style.display = 'block'; }
 
-// 6. GIAO DIỆN & CÔNG CỤ
-window.renderList = function() {
-    const container = document.getElementById('listContainer');
-    const search = document.getElementById('search').value.toLowerCase();
-    container.innerHTML = '';
-    
-    let count = 0;
-    for(const item of cachedWords) {
-        if(count > 50 && !search) break;
-        if(item.w.toLowerCase().includes(search) || item.m.toLowerCase().includes(search)) {
-            const lvl = item.level || 0;
-            let color = lvl > 4 ? '#22c55e' : lvl > 2 ? '#f59e0b' : lvl > 0 ? '#ef4444' : '#ccc';
-            const isDue = (item.nextReview || 0) <= Date.now();
-            const dateStr = (item.nextReview || 0) === 0 ? "Mới" : new Date(item.nextReview).toLocaleDateString('vi-VN', {day:'numeric', month:'numeric'});
+// 7. GIAO DIỆN & CÔNG CỤ
+// Adding debounce to renderList to optimize search input processing
+let listRenderTimeout;
+function renderList() {
+    clearTimeout(listRenderTimeout);
+    listRenderTimeout = setTimeout(() => {
+        const container = document.getElementById('listContainer');
+        const searchInputEl = document.getElementById('search');
+        if (!container || !searchInputEl) return;
+        const search = searchInputEl.value.toLowerCase();
+        container.innerHTML = '';
+        
+        // Optimize DOM manipulation using DocumentFragment
+        const fragment = document.createDocumentFragment();
+        let count = 0;
+        
+        for(const item of cachedWords) {
+            if(count > 50 && !search) break;
+            if(item.w.toLowerCase().includes(search) || item.m.toLowerCase().includes(search)) {
+                const lvl = item.level || 0;
+                let color = lvl > 4 ? '#22c55e' : lvl > 2 ? '#f59e0b' : lvl > 0 ? '#ef4444' : '#ccc';
+                const isDue = (item.nextReview || 0) <= Date.now();
+                const dateStr = (item.nextReview || 0) === 0 ? "Mới" : new Date(item.nextReview).toLocaleDateString('vi-VN', {day:'numeric', month:'numeric'});
 
-            const div = document.createElement('div');
-            div.className = 'vocab-item';
-            div.innerHTML = `
-                <div style="flex:1">
-                    <div>
-                        <span class="level-dot" style="background:${color}" title="Level ${lvl}"></span>
-                        <span class="badge ${item.l}">${item.l}</span> <b>${item.w}</b> <small style="color:#666; font-style:italic">${item.p || ''}</small>
-                        <button onclick="speakText('${item.w}', '${item.l}')" style="border:none;background:none;cursor:pointer">🔊</button>
+                const div = document.createElement('div');
+                div.className = 'vocab-item';
+                div.innerHTML = `
+                    <div style="flex:1">
+                        <div>
+                            <span class="level-dot" style="background:${color}" title="Level ${lvl}"></span>
+                            <span class="badge ${item.l}">${item.l}</span> <b>${item.w}</b> <small style="color:#666; font-style:italic">${item.p || ''}</small>
+                            <button class="btn-list-speak" data-w="${item.w}" data-l="${item.l}" style="border:none;background:none;cursor:pointer">🔊</button>
+                        </div>
+                        <div style="font-size:0.9em; color:#64748b; margin-top:2px">
+                            ${item.m} <span style="float:right; font-size:0.8em; color:${isDue?'red':'green'}">${isDue ? '⚡ Cần ôn' : '📅 ' + dateStr}</span>
+                        </div>
                     </div>
-                    <div style="font-size:0.9em; color:#64748b; margin-top:2px">
-                        ${item.m} <span style="float:right; font-size:0.8em; color:${isDue?'red':'green'}">${isDue ? '⚡ Cần ôn' : '📅 ' + dateStr}</span>
-                    </div>
-                </div>
-                <button onclick="deleteWord('${item.id}')" style="border:none;background:none;color:#999;cursor:pointer;margin-left:10px">✖</button>
-            `;
-            container.appendChild(div); count++;
+                    <button class="btn-list-delete" data-id="${item.id}" style="border:none;background:none;color:#999;cursor:pointer;margin-left:10px">✖</button>
+                `;
+                fragment.appendChild(div); count++;
+            }
         }
-    }
+        container.appendChild(fragment);
+    }, 150); // debounce delay
 }
 
-window.importCSV = async function() {
+async function importCSV() {
     if(!currentUser) return alert("Cần đăng nhập!");
     const file = document.getElementById('csvFile').files[0];
     if(!file) return alert("Chưa chọn file!");
@@ -285,13 +363,13 @@ window.importCSV = async function() {
     reader.readAsText(file);
 }
 
-// Gắn các hàm Utils vào window để HTML gọi được
-window.exportJSON = () => exportJSON(cachedWords);
-window.downloadSample = downloadSample;
-
-window.switchTab = function(id) {
+function switchTab(id) {
     document.querySelectorAll('.content, .tab-btn').forEach(e => e.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    document.querySelector(`button[onclick="switchTab('${id}')"]`).classList.add('active');
-    if(id==='list') window.renderList();
+    const targetContent = document.getElementById(id);
+    if (targetContent) targetContent.classList.add('active');
+    
+    const targetBtn = document.querySelector(`button[data-tab="${id}"]`);
+    if (targetBtn) targetBtn.classList.add('active');
+    
+    if(id==='list') renderList();
 }
