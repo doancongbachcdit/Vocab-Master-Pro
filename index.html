@@ -27,6 +27,16 @@
 
     <div id="quiz" class="content active">
         <div class="card">
+            <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold;">
+                    <span>🔥 Hành trình 300 từ cốt lõi</span>
+                    <span id="progressText" style="color: var(--primary)">0/300</span>
+                </div>
+                <div style="background: #e2e8f0; border-radius: 10px; height: 10px; overflow: hidden;">
+                    <div id="progressBar" style="background: var(--primary); height: 100%; width: 0%; transition: width 0.5s;"></div>
+                </div>
+            </div>
+
             <div class="srs-info">
                 <span id="reviewStatus">Đang tải...</span>
                 <select id="quizFilter" style="width:auto; padding:5px; margin:0; font-size:0.9em">
@@ -54,11 +64,17 @@
                 </div>
             </div>
 
-            <div id="doneArea" style="text-align:center; padding:30px; display:none">
+            <div id="doneArea" style="text-align:center; padding:20px; display:none">
                 <div style="font-size: 3rem;">🎉</div>
                 <h3>Tuyệt vời!</h3>
                 <p>Bạn đã hoàn thành bài ôn tập hôm nay.</p>
-                <button class="btn btn-outline" id="btnForceReview">💪 Ôn tập ngẫu nhiên</button>
+                
+                <div id="practicalArea" style="text-align: left; margin-top: 20px; padding-top: 20px; border-top: 1px dashed #ccc;">
+                    <h4 style="margin-bottom: 10px;">🗣️ Thực chiến Giao tiếp (Trả lời bằng tiếng Anh):</h4>
+                    <div id="practicalQuestions"></div>
+                </div>
+
+                <button class="btn btn-outline" id="btnForceReview" style="margin-top: 15px;">💪 Ôn tập ngẫu nhiên</button>
             </div>
 
             <div id="emptyArea" style="text-align:center; padding:30px; display:none">
@@ -70,16 +86,23 @@
 
     <div id="data" class="content">
         <div class="card">
-            <h3>➕ Thêm Từ Mới</h3>
-            <div style="display:flex; gap:10px">
-                <input type="text" id="inpWord" placeholder="Từ (VD: Cat / 你好)" style="flex:2">
-                <select id="inpLang" style="flex:1">
-                    <option value="EN">Anh</option>
-                    <option value="CN">Trung</option>
-                </select>
+            <h3>➕ Thêm Từ Mới (Giải phẫu từ)</h3>
+            <div style="display:flex; gap:10px; margin-bottom: 10px;">
+                <input type="text" id="inpWord" placeholder="Từ vựng *" style="flex:2">
+                <select id="inpLang" style="flex:1"><option value="EN">Anh</option><option value="CN">Trung</option></select>
             </div>
-            <input type="text" id="inpPhonetic" placeholder="Phiên âm (VD: /kæt/ hoặc nǐ hǎo)">
-            <input type="text" id="inpMeaning" placeholder="Nghĩa (VD: Con mèo)">
+            
+            <input type="text" id="inpMeaning" placeholder="Nghĩa của từ *" style="margin-bottom: 10px;">
+            <input type="text" id="inpPhonetic" placeholder="Phiên âm (Tùy chọn)" style="margin-bottom: 10px;">
+            
+            <div id="englishAnatomy" style="display:flex; gap:5px; margin-bottom: 10px;">
+                <input type="text" id="inpPrefix" placeholder="Tiền tố (VD: Un-)" style="font-size: 0.85em;">
+                <input type="text" id="inpRoot" placeholder="Gốc từ (VD: believe)" style="font-size: 0.85em;">
+                <input type="text" id="inpSuffix" placeholder="Hậu tố (VD: -able)" style="font-size: 0.85em;">
+            </div>
+            
+            <input type="text" id="inpExample" placeholder="✍️ Câu ví dụ / Hội thoại mẫu chứa từ này" style="margin-bottom: 10px;">
+
             <button class="btn btn-primary" id="btnAddWord">Lưu Lên Mây</button>
             <p id="addStatus" style="text-align:center; color:var(--success); margin:5px 0"></p>
         </div>

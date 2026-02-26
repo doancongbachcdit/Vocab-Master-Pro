@@ -1,18 +1,22 @@
 // Hàm đọc âm thanh
-export function speakText(text, lang) {
+export function speakText(word, lang, example = "") {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Nếu có câu ví dụ, nó sẽ đọc từ vựng, ngắt nghỉ 1 nhịp, rồi đọc câu ví dụ
+    const textToSpeak = example ? `${word}... ${example}` : word;
+    
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
     utterance.lang = (lang === 'CN') ? 'zh-CN' : 'en-US';
-    utterance.rate = 0.9;
+    utterance.rate = 0.85; // Đọc chậm một chút để dễ nghe phát âm
     window.speechSynthesis.speak(utterance);
 }
 
 // Hàm tải file mẫu Excel
 export function downloadSample() { 
-    const c = "\uFEFFTuVung,Nghia,NgonNgu(EN/CN),PhienAm\nHello,Xin chào,EN,/həˈloʊ/\n你好,Xin chào,CN,nǐ hǎo"; 
+    const c = "\uFEFFTuVung,Nghia,NgonNgu(EN/CN),PhienAm,TienTo,GocTu,HauTo,CauViDu\nUnbelievable,Không thể tin được,EN,/ˌʌnbɪˈliːvəbl/,un,believe,able,It is an unbelievable story.\n你好,Xin chào,CN,nǐ hǎo,,,,"; 
     const b = new Blob([c],{type:'text/csv;charset=utf-8;'}); 
-    const a = document.createElement('a'); a.href=URL.createObjectURL(b); a.download="Mau_Moi.csv"; a.click();
+    const a = document.createElement('a'); a.href=URL.createObjectURL(b); a.download="Mau_Moi_Pro.csv"; a.click();
 }
 
 // Hàm tải file Backup

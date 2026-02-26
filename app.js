@@ -46,6 +46,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Data Elements
     document.getElementById('btnAddWord').addEventListener('click', addWord);
+    // Ẩn/Hiện 3 ô Giải phẫu từ tùy theo ngôn ngữ (EN / CN)
+    const inpLangEl = document.getElementById('inpLang');
+    if (inpLangEl) {
+        inpLangEl.addEventListener('change', (e) => {
+            const anatomyDiv = document.getElementById('englishAnatomy');
+            if (anatomyDiv) {
+                // Nếu là EN thì hiện (flex), nếu là CN thì ẩn (none)
+                anatomyDiv.style.display = (e.target.value === 'EN') ? 'flex' : 'none';
+            }
+        });
+    }
     document.getElementById('btnDownloadSample').addEventListener('click', downloadSample);
     document.getElementById('btnImportCSV').addEventListener('click', importCSV);
     document.getElementById('btnExportJSON').addEventListener('click', () => exportJSON(cachedWords));
@@ -74,7 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (speakBtn) {
             const w = speakBtn.getAttribute('data-w');
             const l = speakBtn.getAttribute('data-l');
-            speakText(w, l);
+            const ex = speakBtn.getAttribute('data-ex'); // Lấy câu ví dụ
+            speakText(w, l, ex); // Truyền sang utils.js
         } else if (deleteBtn) {
             const id = deleteBtn.getAttribute('data-id');
             deleteWord(id);
@@ -123,19 +135,41 @@ async function addWord() {
     const p = document.getElementById('inpPhonetic').value.trim();
     const l = document.getElementById('inpLang').value;
     
+    // Lấy thêm dữ liệu giải phẫu & ví dụ (nếu người dùng có nhập)
+    const prf = document.getElementById('inpPrefix')?.value.trim() || "";
+    const rt = document.getElementById('inpRoot')?.value.trim() || "";
+    const suf = document.getElementById('inpSuffix')?.value.trim() || "";
+    const ex = document.getElementById('inpExample')?.value.trim() || "";
+
+    // 🛑 KIỂM TRA CHẶN DẤU PHẨY (Bảo vệ dữ liệu CSV)
+    if (ex.includes(',')) {
+        return alert("⚠️ Lỗi: Vui lòng không dùng dấu phẩy (,) trong câu ví dụ. Thay vào đó hãy dùng dấu chấm (.) hoặc dấu chấm phẩy (;)");
+    }
+    if (w.includes(',') || m.includes(',')) {
+        return alert("⚠️ Lỗi: Vui lòng không dùng dấu phẩy (,) trong Từ vựng và Nghĩa.");
+    }
+    
+    if(!w || !m) return alert("Thiếu từ hoặc nghĩa!");
+    
     if(!w || !m) return alert("Thiếu từ hoặc nghĩa!");
     if (cachedWords.some(item => item.w.toLowerCase() === w.toLowerCase() && item.l === l)) return alert(`Từ "${w}" đã tồn tại!`);
 
-    const newItem = { w, m, l, p, level: 0, nextReview: 0, userId: currentUser.uid };
+    const newItem = { 
+        w, m, l, p, 
+        prf, rt, suf, ex, // Đẩy các trường mới này lên Firebase
+        level: 0, nextReview: 0, userId: currentUser.uid 
+    };
 
     try {
         document.getElementById('addStatus').innerText = "Đang lưu...";
         const docRef = await addDoc(collection(db, "words"), newItem);
         cachedWords.unshift({ id: docRef.id, ...newItem }); 
         
-        document.getElementById('inpWord').value = '';
-        document.getElementById('inpMeaning').value = '';
-        document.getElementById('inpPhonetic').value = '';
+        // Reset sạch các ô nhập liệu
+        ['inpWord', 'inpMeaning', 'inpPhonetic', 'inpPrefix', 'inpRoot', 'inpSuffix', 'inpExample'].forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.value = '';
+        });
         document.getElementById('inpWord').focus();
         
         document.getElementById('addStatus').innerText = "✅ Đã lưu!";
@@ -166,9 +200,18 @@ function updateSRSStatus() {
     document.getElementById('reviewStatus').innerHTML = dueWords.length > 0 
         ? `Cần ôn: <b class="due-badge">${dueWords.length}</b> từ` 
         : `<span style="color:var(--success)">Đã học xong!</span>`;
+    // Cập nhật thanh tiến độ 300 từ (Chỉ tính những từ có level > 0 tức là đã học ít nhất 1 lần)
+    const learnedCount = cachedWords.filter(w => (w.level || 0) > 0).length;
+    const percent = Math.min((learnedCount / 300) * 100, 100);
+    const pb = document.getElementById('progressBar');
+    const pt = document.getElementById('progressText');
+    if (pb) pb.style.width = percent + '%';
+    if (pt) pt.innerText = `${learnedCount}/300`;
 }
 
-function speakCurrent() { if(currentQuizItem) speakText(currentQuizItem.w, currentQuizItem.l); }
+function speakCurrent() { 
+    if(currentQuizItem) speakText(currentQuizItem.w, currentQuizItem.l, currentQuizItem.ex); 
+}
 
 function resetQuiz() { quizHistory = []; historyIndex = -1; isCramMode = false; nextQuestion(); }
 
@@ -188,6 +231,49 @@ function nextQuestion() {
             document.getElementById('quizArea').style.display = 'none';
             document.getElementById('doneArea').style.display = 'block';
             document.getElementById('emptyArea').style.display = 'none';
+            
+            // 🛑 TÍCH HỢP AI TẠO CÂU HỎI THỰC CHIẾN
+            const qContainer = document.getElementById('practicalQuestions');
+            qContainer.innerHTML = '<p style="color: #64748b;">🤖 AI đang suy nghĩ câu hỏi riêng cho bạn...</p>';
+            
+            // 1. Lấy ra tối đa 3 từ bạn vừa học xong
+            const targetWords = [...quizHistory.map(q => q.correct)].sort(() => 0.5 - Math.random()).slice(0, 3);
+            const wordList = targetWords.map(item => item.w).join(', ');
+
+            if (targetWords.length > 0) {
+                // 2. DÁN API KEY CỦA BẠN VÀO ĐÂY
+                const GEMINI_API_KEY = "AIzaSyCpK_2VqRaeCvHdnvE6CwCXw3jID_PRtRc"; 
+                
+                // 3. Ra lệnh cho AI (Prompt)
+                const prompt = `Bây giờ bạn là gia sư tiếng Anh của Bách. Bách vừa ôn tập các từ vựng sau: ${wordList}. Hãy tạo ra đúng ${targetWords.length} câu hỏi giao tiếp bằng tiếng Anh thật đơn giản, ngắn gọn để Bách luyện trả lời. Mỗi câu BẮT BUỘC phải chứa 1 từ trong danh sách trên. Chỉ in ra các câu hỏi, mỗi câu 1 dòng, tuyệt đối không in thêm bất kỳ chữ nào khác.`;
+
+                // 4. Gọi API
+                fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    const aiText = data.candidates[0].content.parts[0].text;
+                    const questions = aiText.split('\n').filter(q => q.trim().length > 0); // Tách thành từng dòng
+                    
+                    qContainer.innerHTML = ''; // Xóa chữ "đang suy nghĩ..."
+                    questions.forEach((q, idx) => {
+                         qContainer.innerHTML += `
+                            <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: left;">
+                                <b style="color: var(--primary)">Q${idx + 1}:</b> ${q}
+                                <textarea placeholder="Gõ câu trả lời bằng tiếng Anh để luyện tập..." style="width:100%; margin-top:5px; padding:8px; border:1px solid #cbd5e1; border-radius:5px; font-family:inherit; resize:vertical;"></textarea>
+                            </div>`;
+                    });
+                })
+                .catch(err => {
+                    console.error("Lỗi AI:", err);
+                    qContainer.innerHTML = '<p style="color: red;">Kết nối AI thất bại. Vui lòng thử lại sau.</p>';
+                });
+            }
             return;
         } else {
             const pool = document.getElementById('quizFilter').value === 'ALL' ? cachedWords : cachedWords.filter(x => x.l === document.getElementById('quizFilter').value);
@@ -317,7 +403,7 @@ function renderList() {
                         <div>
                             <span class="level-dot" style="background:${color}" title="Level ${lvl}"></span>
                             <span class="badge ${item.l}">${item.l}</span> <b>${item.w}</b> <small style="color:#666; font-style:italic">${item.p || ''}</small>
-                            <button class="btn-list-speak" data-w="${item.w}" data-l="${item.l}" style="border:none;background:none;cursor:pointer">🔊</button>
+                            <button class="btn-list-speak" data-w="${item.w}" data-l="${item.l}" data-ex="${item.ex || ''}" style="border:none;background:none;cursor:pointer">🔊</button>
                         </div>
                         <div style="font-size:0.9em; color:#64748b; margin-top:2px">
                             ${item.m} <span style="float:right; font-size:0.8em; color:${isDue?'red':'green'}">${isDue ? '⚡ Cần ôn' : '📅 ' + dateStr}</span>
@@ -342,23 +428,41 @@ async function importCSV() {
         const lines = e.target.result.split(/\r\n|\n/);
         let newItems = [];
         lines.forEach(line => {
+            // Tách các cột dựa vào dấu phẩy
             const parts = line.split(',');
+            
+            // Đảm bảo dòng có dữ liệu và không phải dòng tiêu đề
             if(parts.length >= 2 && !parts[0].toLowerCase().includes('tuvung')) {
-                const w = parts[0].trim(), m = parts[1].trim(), l = parts[2]?.trim().toUpperCase() || 'EN', ph = parts[3] ? parts[3].trim() : ""; 
+                const w = parts[0]?.trim() || ""; 
+                const m = parts[1]?.trim() || ""; 
+                const l = parts[2]?.trim().toUpperCase() || 'EN'; 
+                const ph = parts[3]?.trim() || ""; 
+                
+                // Đọc thêm 4 cột mới (Giải phẫu từ & Ví dụ)
+                const prf = parts[4]?.trim() || "";
+                const rt = parts[5]?.trim() || "";
+                const suf = parts[6]?.trim() || "";
+                const ex = parts[7]?.trim() || "";
+
+                // Kiểm tra điều kiện: Có từ, có nghĩa và không bị trùng lặp
                 if(w && m && !cachedWords.some(x => x.w.toLowerCase() === w.toLowerCase() && x.l === l) && !newItems.some(x => x.w.toLowerCase() === w.toLowerCase() && x.l === l)) {
-                    newItems.push({ w, m, l, p: ph, level: 0, nextReview: 0, userId: currentUser.uid });
+                    // Đẩy TẤT CẢ dữ liệu vào mảng
+                    newItems.push({ w, m, l, p: ph, prf, rt, suf, ex, level: 0, nextReview: 0, userId: currentUser.uid });
                 }
             }
         });
         
         if(newItems.length > 0) {
             document.getElementById('csvFile').value = ''; 
-            alert(`Đang nạp ${newItems.length} từ...`);
+            alert(`Đang nạp ${newItems.length} từ lên mây...`);
             const batch = writeBatch(db);
             newItems.forEach(item => batch.set(doc(collection(db, "words")), item));
             await batch.commit();
-            alert("✅ Đã nạp thành công!"); loadDataFromCloud();
-        } else { alert("Không có từ mới!"); }
+            alert("✅ Đã nạp thành công!"); 
+            loadDataFromCloud();
+        } else { 
+            alert("Không có từ mới nào được nạp (hoặc tất cả đều bị trùng)!"); 
+        }
     };
     reader.readAsText(file);
 }
