@@ -38,10 +38,29 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('quizFilter').addEventListener('change', resetQuiz);
     document.getElementById('qWord').addEventListener('click', speakCurrent);
     document.getElementById('btnSpeak').addEventListener('click', speakCurrent);
+    document.getElementById('btnHint').addEventListener('click', getAIHint);
     document.getElementById('qPhonetic').addEventListener('click', (e) => e.target.classList.add('revealed'));
     document.getElementById('btnPrev').addEventListener('click', prevQuestion);
     document.getElementById('btnNext').addEventListener('click', nextQuestion);
+
     document.getElementById('btnForceReview').addEventListener('click', forceReviewMode);
+    // Lắng nghe sự kiện Bấm nút Chấm Bài AI
+    const practicalAreaEl = document.getElementById('practicalQuestions');
+    if (practicalAreaEl) {
+        practicalAreaEl.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-grade')) {
+                const container = e.target.closest('div').parentElement;
+                const qText = container.querySelector('.ai-q-text').innerText;
+                const aText = container.querySelector('.ai-a-text').value.trim();
+                const feedbackDiv = container.querySelector('.ai-feedback');
+
+                if (!aText) return alert("⚠️ Bách vui lòng gõ câu trả lời trước khi nhờ AI chấm nhé!");
+                
+                gradeAnswer(qText, aText, feedbackDiv, e.target);
+            }
+        });
+    }
+
     document.getElementById('btnGoToData').addEventListener('click', () => switchTab('data'));
     
     // Data Elements
@@ -60,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnDownloadSample').addEventListener('click', downloadSample);
     document.getElementById('btnImportCSV').addEventListener('click', importCSV);
     document.getElementById('btnExportJSON').addEventListener('click', () => exportJSON(cachedWords));
+    document.getElementById('btnDeleteAll').addEventListener('click', deleteAllWords);
 
     // List Search Element
     const searchInput = document.getElementById('search');
@@ -93,6 +113,56 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// --- SỰ KIỆN LẮNG NGHE MICRO 🎙️ ---
+    const practicalAreaEl = document.getElementById('practicalQuestions');
+    if (practicalAreaEl) {
+        practicalAreaEl.addEventListener('click', (e) => {
+            const micBtn = e.target.closest('.btn-mic');
+            if (micBtn) {
+                const textarea = micBtn.previousElementSibling; // Lấy thẻ textarea nằm kế bên
+                const langCode = micBtn.getAttribute('data-lang'); // Lấy mã ngôn ngữ (Anh hoặc Trung)
+                
+                // 1. Kiểm tra trình duyệt có hỗ trợ không
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    return alert("Trình duyệt của Bách chưa hỗ trợ tính năng này. Hãy thử dùng Google Chrome nhé!");
+                }
+                
+                // 2. Khởi tạo bộ thu âm
+                const recognition = new SpeechRecognition();
+                recognition.lang = langCode;
+                recognition.interimResults = false; // Chỉ lấy kết quả chốt cuối cùng
+                
+                // 3. Xử lý các trạng thái
+                recognition.onstart = () => {
+                    micBtn.innerText = '🔴'; // Đổi thành chấm đỏ đang thu âm
+                    micBtn.style.transform = 'scale(1.2)';
+                    textarea.placeholder = "👂 Máy đang dỏng tai nghe Bách nói đây...";
+                };
+                
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    // Nối thêm chữ vừa đọc vào (phòng khi Bách muốn nói nối tiếp)
+                    textarea.value += (textarea.value ? ' ' : '') + transcript; 
+                };
+                
+                recognition.onerror = (event) => {
+                    console.error("Lỗi Micro:", event.error);
+                    if(event.error === 'not-allowed') alert("Bách chưa cấp quyền dùng Micro cho trang web rồi!");
+                };
+                
+                recognition.onend = () => {
+                    micBtn.innerText = '🎙️'; // Trả lại icon Micro
+                    micBtn.style.transform = 'scale(1)';
+                    textarea.placeholder = "Gõ phím hoặc bấm micro để trả lời...";
+                };
+                
+                // 4. Bắt đầu thu âm!
+                recognition.start();
+            }
+        });
+    }
 
 // 4. LOGIC ĐĂNG NHẬP
 onAuthStateChanged(auth, async (user) => {
@@ -189,6 +259,31 @@ async function deleteWord(id) {
     }
 }
 
+async function deleteAllWords() {
+    if(!currentUser) return alert("Vui lòng đăng nhập!");
+    
+    // Hỏi xác nhận 2 lần để tránh bấm nhầm
+    if(!confirm(`⚠️ CẢNH BÁO NGUY HIỂM:\nBạn có chắc chắn muốn XÓA VĨNH VIỄN toàn bộ ${cachedWords.length} từ vựng hiện có không? Hành động này KHÔNG THỂ HOÀN TÁC!`)) return;
+    
+    try {
+        document.getElementById('reviewStatus').innerHTML = "⏳ Đang dọn dẹp mây...";
+        
+        // Quét vòng lặp và xóa từng từ trên Firebase
+        for (const item of cachedWords) {
+            await deleteDoc(doc(db, "words", item.id));
+        }
+        
+        // Xóa sạch bộ nhớ RAM của app
+        cachedWords = []; 
+        updateSRSStatus();
+        if(document.getElementById('list').classList.contains('active')) renderList();
+        
+        alert("✅ Đã dọn sạch bong! Bây giờ bạn có thể tải File Mẫu Mới về và nạp lại dữ liệu xịn sò rồi nhé.");
+    } catch (e) {
+        alert("Lỗi khi xóa: " + e.message);
+    }
+}
+
 // 6. QUIZ VÀ SRS
 function updateSRSStatus() {
     if(!currentUser) return;
@@ -236,28 +331,32 @@ function nextQuestion() {
             const qContainer = document.getElementById('practicalQuestions');
             qContainer.innerHTML = '<p style="color: #64748b;">🤖 AI đang suy nghĩ câu hỏi riêng cho bạn...</p>';
             
-            // 1. Lấy ra tối đa 3 từ để hỏi
-            // Ưu tiên các từ vừa học trong phiên này (quizHistory)
-            let targetWords = [...new Set(quizHistory.map(q => q.correct))].sort(() => 0.5 - Math.random()).slice(0, 3);
-            
-            // 💡 CẬP NHẬT MỚI: Nếu phiên này rỗng (vào app đã thấy học xong), 
-            // bốc ngẫu nhiên 3 từ đã từng học (level > 0) trong quá khứ để hỏi.
-            if (targetWords.length === 0) {
-                const learnedWords = cachedWords.filter(w => (w.level || 0) > 0);
-                targetWords = [...learnedWords].sort(() => 0.5 - Math.random()).slice(0, 3);
+            // 1. Lấy ra danh sách từ vừa học (hoặc từ cũ nếu vào app đã thấy học xong)
+            let rawWords = [...new Set(quizHistory.map(q => q.correct))];
+            if (rawWords.length === 0) {
+                const currentFilter = document.getElementById('quizFilter').value;
+                rawWords = cachedWords.filter(w => (w.level || 0) > 0 && (currentFilter === 'ALL' ? true : w.l === currentFilter));
             }
 
-            if (targetWords.length > 0) {
+            if (rawWords.length > 0) {
+                // 💡 ĐỘT PHÁ: Nhận diện ngôn ngữ Bách vừa học (dựa vào từ đầu tiên)
+                const mainLang = rawWords[0].l; 
+                const isChinese = (mainLang === 'CN');
+                const langName = isChinese ? 'tiếng Trung' : 'tiếng Anh';
+                const extraPrompt = isChinese ? ' (Yêu cầu in ra chữ Hán kèm Pinyin)' : '';
+
+                // Lọc lấy tối đa 3 từ CÙNG NGÔN NGỮ để hỏi (tránh AI bị lú vì mix Anh-Trung)
+                const targetWords = rawWords.filter(w => w.l === mainLang).sort(() => 0.5 - Math.random()).slice(0, 3);
                 const wordList = targetWords.map(item => item.w).join(', ');
                 
-                // 2. KEY CỦA BẠN (Đã giữ nguyên)
-                const GEMINI_API_KEY = "AIzaSyCpK_2VqRaeCvHdnvE6CwCXw3jID_PRtRc"; 
+                // 2. KEY CỦA BẠN (Nhớ dán lại key của Bách vào đây nhé)
+                const GEMINI_API_KEY = "AIzaSyCjr0Zkrtn8X3DNxaDYgYjXJn2545rM7bw"; 
                 
-                // 3. Ra lệnh cho AI (Prompt)
-                const prompt = `Bây giờ bạn là gia sư tiếng Anh của Bách. Bách vừa ôn tập các từ vựng sau: ${wordList}. Hãy tạo ra đúng ${targetWords.length} câu hỏi giao tiếp bằng tiếng Anh thật đơn giản, ngắn gọn để Bách luyện trả lời. Mỗi câu BẮT BUỘC phải chứa 1 từ trong danh sách trên. Chỉ in ra các câu hỏi, mỗi câu 1 dòng, tuyệt đối không in thêm bất kỳ chữ nào khác.`;
+                // 3. Prompt ĐỘNG: Tự đổi vai thành Gia sư Tiếng Anh hoặc Lão sư Tiếng Trung
+                const prompt = `Bây giờ bạn là gia sư ${langName} của Bách. Bách vừa ôn tập các từ vựng sau: ${wordList}. Hãy tạo ra đúng ${targetWords.length} câu hỏi giao tiếp bằng ${langName} thật đơn giản, ngắn gọn để Bách luyện trả lời. Mỗi câu BẮT BUỘC phải chứa 1 từ trong danh sách trên. Chỉ in ra các câu hỏi, mỗi câu 1 dòng, tuyệt đối không in thêm bất kỳ chữ nào khác.${extraPrompt}`;
 
                 // 4. Gọi API
-                fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`, {
+                fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -273,12 +372,25 @@ function nextQuestion() {
                     const aiText = data.candidates[0].content.parts[0].text;
                     const questions = aiText.split('\n').filter(q => q.trim().length > 0);
                     
+                    // Xác định mã ngôn ngữ để cài đặt cho Micro
+                    const langCode = isChinese ? 'zh-CN' : 'en-US'; 
+                    
                     qContainer.innerHTML = ''; 
                     questions.forEach((q, idx) => {
                          qContainer.innerHTML += `
-                            <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: left;">
-                                <b style="color: var(--primary)">Q${idx + 1}:</b> ${q}
-                                <textarea placeholder="Gõ câu trả lời bằng tiếng Anh để luyện tập..." style="width:100%; margin-top:5px; padding:8px; border:1px solid #cbd5e1; border-radius:5px; font-family:inherit; resize:vertical;"></textarea>
+                            <div style="background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: left; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                                <b style="color: var(--primary)">Q${idx + 1}:</b> <span class="ai-q-text">${q}</span>
+                                
+                                <div style="position: relative; margin-top: 8px;">
+                                    <textarea class="ai-a-text" placeholder="Gõ phím hoặc bấm micro để trả lời..." style="width:100%; padding:10px; padding-right: 40px; border:1px solid #cbd5e1; border-radius:6px; font-family:inherit; resize:vertical; min-height: 60px;"></textarea>
+                                    <button class="btn-mic" data-lang="${langCode}" title="Bấm để nói" style="position: absolute; right: 5px; top: 5px; background: none; border: none; font-size: 1.5rem; cursor: pointer; transition: 0.2s;">🎙️</button>
+                                </div>
+                                
+                                <div style="text-align: right; margin-top: 8px;">
+                                    <button class="btn btn-primary btn-grade" style="padding: 6px 15px; font-size: 0.9em; width: auto; margin: 0; background: #10b981; border: none;">✨ Nhờ Thầy AI chấm</button>
+                                </div>
+                                
+                                <div class="ai-feedback" style="margin-top: 15px; display: none; font-size: 0.95em; line-height: 1.6;"></div>
                             </div>`;
                     });
                 })
@@ -319,10 +431,26 @@ function prevQuestion() { if(historyIndex > 0) { historyIndex--; renderQuestion(
 function renderQuestion(q) {
     currentQuizItem = q.correct;
     document.getElementById('qWord').innerText = q.correct.w;
+
+    // Giấu khung gợi ý của câu cũ đi
+    const hintArea = document.getElementById('aiHintArea');
+    if (hintArea) {
+        hintArea.style.display = 'none';
+        hintArea.innerHTML = '';
+    }
     
     const phoneticEl = document.getElementById('qPhonetic');
     phoneticEl.innerText = q.correct.p || "(Chưa có phiên âm)";
     q.isAnswered ? phoneticEl.classList.add('revealed') : phoneticEl.classList.remove('revealed');
+
+    // Xử lý ẩn/hiện câu ví dụ
+    const exEl = document.getElementById('qex');
+    if (q.correct.ex) {
+        exEl.innerText = `📝 ${q.correct.ex}`;
+        exEl.style.display = q.isAnswered ? 'block' : 'none'; // Giấu đi khi chưa trả lời
+    } else {
+        exEl.style.display = 'none';
+    }
 
     const grid = document.getElementById('qOptions');
     grid.innerHTML = ''; document.getElementById('qMsg').innerText = '';
@@ -355,7 +483,10 @@ async function handleAnswer(btn, selected, correct) {
     document.querySelectorAll('.opt-btn').forEach(b => b.disabled = true);
     document.getElementById('btnNext').style.visibility = 'visible';
     document.getElementById('qPhonetic').classList.add('revealed');
-    
+
+    // THÊM DÒNG NÀY: Hiện câu ví dụ khi đã trả lời
+    if (correct.ex) document.getElementById('qex').style.display = 'block'; 
+        
     speakText(correct.w, correct.l);
 
     const isCorrect = (selected.id === correct.id);
@@ -423,6 +554,7 @@ function renderList() {
                         </div>
                         <div style="font-size:0.9em; color:#64748b; margin-top:2px">
                             ${item.m} <span style="float:right; font-size:0.8em; color:${isDue?'red':'green'}">${isDue ? '⚡ Cần ôn' : '📅 ' + dateStr}</span>
+                            ${item.ex ? `<div style="font-style:italic; color:#475569; margin-top:5px;">📝 ${item.ex}</div>` : ''}
                         </div>
                     </div>
                     <button class="btn-list-delete" data-id="${item.id}" style="border:none;background:none;color:#999;cursor:pointer;margin-left:10px">✖</button>
@@ -492,4 +624,98 @@ function switchTab(id) {
     if (targetBtn) targetBtn.classList.add('active');
     
     if(id==='list') renderList();
+}
+
+// --- TÍNH NĂNG AI CHẤM BÀI ---
+function gradeAnswer(question, answer, feedbackDiv, btn) {
+    // Hiệu ứng chờ
+    btn.disabled = true;
+    btn.innerText = "⏳ Đang đọc bài...";
+    feedbackDiv.style.display = 'block';
+    feedbackDiv.innerHTML = '<span style="color: #64748b; font-style: italic;">🤖 Thầy giáo AI đang phân tích từng từ của Bách...</span>';
+
+    // 🛑 GHI CHÚ: App sẽ dùng chung API Key của bạn
+    const GEMINI_API_KEY = "AIzaSyCjr0Zkrtn8X3DNxaDYgYjXJn2545rM7bw"; 
+
+    // Prompt siêu giáo viên
+    const prompt = `Học sinh vừa trả lời câu hỏi ngôn ngữ sau:
+    - Câu hỏi: "${question}"
+    - Câu trả lời của học sinh: "${answer}"
+
+    Hãy đóng vai một giáo viên ngôn ngữ xuất sắc, nhận xét câu trả lời này bằng tiếng Việt. Trình bày thân thiện, rõ ràng theo đúng 3 phần sau:
+    1. 🎯 Nhận xét & Sửa lỗi: Chỉ ra lỗi ngữ pháp, từ vựng (nếu có). Nếu viết đúng, hãy dành lời khen ngợi.
+    2. ✨ Cách nói tự nhiên (Native): Đề xuất 1-2 cách diễn đạt tự nhiên, chuyên nghiệp hơn mà người bản xứ thường dùng.
+    3. 💡 Mẹo nhỏ: Giải thích ngắn gọn tại sao lại dùng cấu trúc/từ vựng ở phần 2.
+    Lưu ý: Chỉ in ra nội dung, trình bày bằng icon cho sinh động, không cần lời chào hỏi.`;
+
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    })
+    .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || "Lỗi máy chủ Google API");
+        return data;
+    })
+    .then(data => {
+        if (!data.candidates || !data.candidates[0]) throw new Error("AI không trả về kết quả.");
+        const feedback = data.candidates[0].content.parts[0].text;
+        
+        // Hiển thị kết quả tuyệt đẹp
+        feedbackDiv.innerHTML = `<div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 8px; color: #166534;">${feedback.replace(/\n/g, '<br>')}</div>`;
+        btn.innerText = "🔄 Chấm lại (Nếu Bách sửa câu)";
+        btn.disabled = false;
+    })
+    .catch(err => {
+        feedbackDiv.innerHTML = `<p style="color: red;">❌ Lỗi kết nối: ${err.message}</p>`;
+        btn.innerText = "✨ Nhờ Thầy AI chấm";
+        btn.disabled = false;
+    });
+}
+
+// --- TÍNH NĂNG XIN AI GỢI Ý (HINT) ---
+async function getAIHint() {
+    if (!currentQuizItem) return;
+    const hintBtn = document.getElementById('btnHint');
+    const hintArea = document.getElementById('aiHintArea');
+
+    // Khóa nút tránh bấm liên tục, hiện trạng thái chờ
+    hintBtn.disabled = true;
+    hintBtn.style.opacity = '0.5';
+    hintArea.style.display = 'block';
+    hintArea.innerHTML = '<span style="color: #92400e; font-style: italic;">⏳ Thầy giáo AI đang vắt óc tìm gợi ý...</span>';
+
+    const langName = currentQuizItem.l === 'CN' ? 'tiếng Trung' : 'tiếng Anh';
+    const word = currentQuizItem.w;
+
+    const GEMINI_API_KEY = "AIzaSyCjr0Zkrtn8X3DNxaDYgYjXJn2545rM7bw"; 
+    
+    // Prompt ép AI tuyệt đối không nói ra nghĩa tiếng Việt
+    const prompt = `Từ vựng hiện tại là "${word}" (${langName}). Bách đang học và đã quên mất nghĩa của từ này.
+    Hãy giúp Bách nhớ lại bằng 1 trong 2 cách sau:
+    1. Đưa ra một câu gợi ý tình huống bằng ${langName} siêu dễ hiểu (kiểu điền vào chỗ trống).
+    2. Đưa ra một mẹo nhớ (Mnemonic) vui nhộn, hài hước bằng tiếng Việt liên quan đến cách phát âm hoặc hình dáng chữ.
+    QUAN TRỌNG: TUYỆT ĐỐI KHÔNG được dịch trực tiếp nghĩa của từ "${word}" ra tiếng Việt để Bách tự đoán.
+    Trình bày siêu ngắn gọn (1-2 dòng), dùng icon cho sinh động.`;
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || "Lỗi API");
+        
+        const hintText = data.candidates[0].content.parts[0].text;
+        // In kết quả ra màn hình
+        hintArea.innerHTML = `💡 <b>Gợi ý cho Bách:</b><br>${hintText.replace(/\n/g, '<br>')}`;
+    } catch (err) {
+        hintArea.innerHTML = `❌ Lỗi lấy gợi ý: ${err.message}`;
+    } finally {
+        // Mở khóa nút
+        hintBtn.disabled = false;
+        hintBtn.style.opacity = '1';
+    }
 }

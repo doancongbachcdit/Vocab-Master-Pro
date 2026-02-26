@@ -51,13 +51,17 @@
                     <div>
                         <span class="word-display" id="qWord">---</span>
                         <button class="btn-speak" id="btnSpeak">🔊</button>
+                        <button class="btn-speak" id="btnHint" style="font-size: 1.3rem;" title="Xin AI gợi ý">💡</button>
                     </div>
                     <div id="qPhonetic" class="phonetic-display blur-text">---</div>
+                    <div id="qex" style="font-size:0.95em; color:#64748b; font-style:italic; margin-bottom:15px;"></div>
+                    <div id="aiHintArea" style="display:none; font-size: 0.9em; padding: 12px; background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; margin: 10px 0; color: #b45309; text-align: left; line-height: 1.5;"></div>
                 </div>
 
                 <div class="grid-options" id="qOptions"></div>
+                
                 <div id="qMsg" style="text-align:center; height:25px; margin:15px 0; font-weight:bold"></div>
-
+                
                 <div style="display:flex; gap:10px">
                     <button class="btn btn-outline" id="btnPrev" disabled>⬅️ Xem lại</button>
                     <button class="btn btn-primary" id="btnNext">Tiếp theo ➡️</button>
@@ -119,6 +123,8 @@
             <div style="display:flex; gap:10px">
                 <button class="btn btn-outline" id="btnExportJSON">⬇️ Tải Backup (JSON)</button>
             </div>
+            <hr style="border: 0; border-top: 1px dashed #ccc; margin: 15px 0;">
+            <button class="btn btn-danger" id="btnDeleteAll">🗑️ Xóa Sạch Dữ Liệu Cũ</button>
         </div>
     </div>
 
