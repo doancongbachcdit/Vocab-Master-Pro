@@ -236,12 +236,21 @@ function nextQuestion() {
             const qContainer = document.getElementById('practicalQuestions');
             qContainer.innerHTML = '<p style="color: #64748b;">🤖 AI đang suy nghĩ câu hỏi riêng cho bạn...</p>';
             
-            // 1. Lấy ra tối đa 3 từ bạn vừa học xong
-            const targetWords = [...quizHistory.map(q => q.correct)].sort(() => 0.5 - Math.random()).slice(0, 3);
-            const wordList = targetWords.map(item => item.w).join(', ');
+            // 1. Lấy ra tối đa 3 từ để hỏi
+            // Ưu tiên các từ vừa học trong phiên này (quizHistory)
+            let targetWords = [...new Set(quizHistory.map(q => q.correct))].sort(() => 0.5 - Math.random()).slice(0, 3);
+            
+            // 💡 CẬP NHẬT MỚI: Nếu phiên này rỗng (vào app đã thấy học xong), 
+            // bốc ngẫu nhiên 3 từ đã từng học (level > 0) trong quá khứ để hỏi.
+            if (targetWords.length === 0) {
+                const learnedWords = cachedWords.filter(w => (w.level || 0) > 0);
+                targetWords = [...learnedWords].sort(() => 0.5 - Math.random()).slice(0, 3);
+            }
 
             if (targetWords.length > 0) {
-                // 2. DÁN API KEY CỦA BẠN VÀO ĐÂY
+                const wordList = targetWords.map(item => item.w).join(', ');
+                
+                // 2. KEY CỦA BẠN (Đã giữ nguyên)
                 const GEMINI_API_KEY = "AIzaSyCpK_2VqRaeCvHdnvE6CwCXw3jID_PRtRc"; 
                 
                 // 3. Ra lệnh cho AI (Prompt)
@@ -255,12 +264,10 @@ function nextQuestion() {
                 })
                 .then(async response => {
                     const data = await response.json();
-                    // Nếu Google báo lỗi (404, 400...), ném lỗi ra để bắt
                     if (!response.ok) throw new Error(data.error?.message || "Lỗi máy chủ Google API");
                     return data;
                 })
                 .then(data => {
-                    // Tránh lỗi undefined nếu AI trả về rỗng
                     if (!data.candidates || !data.candidates[0]) throw new Error("AI không trả về kết quả.");
                     
                     const aiText = data.candidates[0].content.parts[0].text;
@@ -279,6 +286,9 @@ function nextQuestion() {
                     console.error("Chi tiết lỗi AI:", err);
                     qContainer.innerHTML = `<p style="color: red;">❌ Kết nối AI thất bại: ${err.message}</p>`;
                 });
+            } else {
+                // Xử lý triệt để: Nếu tài khoản mới tinh chưa từng học từ nào bao giờ
+                qContainer.innerHTML = '<p style="color: #64748b;">Bạn chưa học từ vựng nào. Hãy thêm từ và làm bài tập để AI có thể tạo câu hỏi nhé!</p>';
             }
             return;
         } else {
