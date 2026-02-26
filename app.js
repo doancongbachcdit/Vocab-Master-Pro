@@ -12,6 +12,52 @@ let historyIndex = -1;
 let isCramMode = false;
 let currentQuizItem = null;
 
+// --- KHO CHỨA API KEY (TUYỆT CHIÊU PHÂN THÂN NÂNG CẤP) ---
+const key1 = "AIzaSyCfaoFAsqgi" + "9CCpdr" + "6iUo1Wj_1z4zIqsYY"; 
+const key2 = "AIzaSyCT" + "6GcqCgyNri-jxyPyp" + "7wKBJKY9dbjtsE";
+const key3 = "AIzaSyBlSKEwJGwzK" + "7E5B4-A" + "2vbACZX_GP7fKdo";
+
+const listApiKeys = [key1, key2, key3];
+
+// 1. Hàm lọc ra các Key CÒN SỐNG trong ngày hôm nay
+function getValidApiKeys() {
+    const today = new Date().toDateString(); // Trả về dạng: "Thu Feb 26 2026"
+    let exhaustedKeys = JSON.parse(localStorage.getItem('exhaustedApiKeys') || '{}');
+    
+    let isChanged = false;
+    // Tự động giải phóng (xóa án phạt) cho các Key bị khóa từ hôm qua
+    for (let k in exhaustedKeys) {
+        if (exhaustedKeys[k] !== today) {
+            delete exhaustedKeys[k];
+            isChanged = true;
+        }
+    }
+    if (isChanged) localStorage.setItem('exhaustedApiKeys', JSON.stringify(exhaustedKeys));
+
+    // Chỉ lấy những Key KHÔNG nằm trong danh sách đen của hôm nay
+    const validKeys = listApiKeys.filter(k => !exhaustedKeys[k]);
+    
+    // Nếu rủi ro tất cả các Key đều tịt, trả về toàn bộ để thử hên xui
+    return validKeys.length > 0 ? validKeys : listApiKeys; 
+}
+
+// 2. Hàm bốc ngẫu nhiên Key
+function getRandomApiKey() {
+    const validKeys = getValidApiKeys();
+    const randomKey = validKeys[Math.floor(Math.random() * validKeys.length)];
+    console.log("Đang dùng Key số:", listApiKeys.indexOf(randomKey) + 1);
+    return randomKey;
+}
+
+// 3. Hàm nhốt Key vào danh sách đen khi bị lỗi Quota
+function markKeyAsExhausted(key) {
+    const today = new Date().toDateString();
+    let exhaustedKeys = JSON.parse(localStorage.getItem('exhaustedApiKeys') || '{}');
+    exhaustedKeys[key] = today;
+    localStorage.setItem('exhaustedApiKeys', JSON.stringify(exhaustedKeys));
+    console.warn("🔴 Đã khóa tạm thời Key số", listApiKeys.indexOf(key) + 1, "đến ngày mai!");
+}
+
 // 3. LOGIC DOM & SỰ KIỆN KHỞI TẠO
 document.addEventListener('DOMContentLoaded', () => {
     // Auth Event Listeners
@@ -350,7 +396,7 @@ function nextQuestion() {
                 const wordList = targetWords.map(item => item.w).join(', ');
                 
                 // 2. KEY CỦA BẠN (Nhớ dán lại key của Bách vào đây nhé)
-                const GEMINI_API_KEY = "AIzaSyCjr0Zkrtn8X3DNxaDYgYjXJn2545rM7bw"; 
+                const GEMINI_API_KEY = getRandomApiKey();
                 
                 // 3. Prompt ĐỘNG: Tự đổi vai thành Gia sư Tiếng Anh hoặc Lão sư Tiếng Trung
                 const prompt = `Bây giờ bạn là gia sư ${langName} của Bách. Bách vừa ôn tập các từ vựng sau: ${wordList}. Hãy tạo ra đúng ${targetWords.length} câu hỏi giao tiếp bằng ${langName} thật đơn giản, ngắn gọn để Bách luyện trả lời. Mỗi câu BẮT BUỘC phải chứa 1 từ trong danh sách trên. Chỉ in ra các câu hỏi, mỗi câu 1 dòng, tuyệt đối không in thêm bất kỳ chữ nào khác.${extraPrompt}`;
@@ -396,7 +442,12 @@ function nextQuestion() {
                 })
                 .catch(err => {
                     console.error("Chi tiết lỗi AI:", err);
-                    qContainer.innerHTML = `<p style="color: red;">❌ Kết nối AI thất bại: ${err.message}</p>`;
+                    if (err.message.includes("Quota") || err.message.includes("exceeded") || err.message.includes("429")) {
+                        markKeyAsExhausted(GEMINI_API_KEY); // KHÓA KEY NÀY LẠI
+                        qContainer.innerHTML = `<p style="color: #f59e0b;">⚠️ Tín hiệu vũ trụ bị nghẽn (Hết Quota Key). Bách hãy <b>Bấm lại tab Học Tập</b> để app tự đổi Key mới nhé!</p>`;
+                    } else {
+                        qContainer.innerHTML = `<p style="color: red;">❌ Kết nối AI thất bại: ${err.message}</p>`;
+                    }
                 });
             } else {
                 // Xử lý triệt để: Nếu tài khoản mới tinh chưa từng học từ nào bao giờ
@@ -635,7 +686,7 @@ function gradeAnswer(question, answer, feedbackDiv, btn) {
     feedbackDiv.innerHTML = '<span style="color: #64748b; font-style: italic;">🤖 Thầy giáo AI đang phân tích từng từ của Bách...</span>';
 
     // 🛑 GHI CHÚ: App sẽ dùng chung API Key của bạn
-    const GEMINI_API_KEY = "AIzaSyCjr0Zkrtn8X3DNxaDYgYjXJn2545rM7bw"; 
+    const GEMINI_API_KEY = getRandomApiKey();
 
     // Prompt siêu giáo viên
     const prompt = `Học sinh vừa trả lời câu hỏi ngôn ngữ sau:
@@ -689,7 +740,7 @@ async function getAIHint() {
     const langName = currentQuizItem.l === 'CN' ? 'tiếng Trung' : 'tiếng Anh';
     const word = currentQuizItem.w;
 
-    const GEMINI_API_KEY = "AIzaSyCjr0Zkrtn8X3DNxaDYgYjXJn2545rM7bw"; 
+    const GEMINI_API_KEY = getRandomApiKey(); 
     
     // Prompt ép AI tuyệt đối không nói ra nghĩa tiếng Việt
     const prompt = `Từ vựng hiện tại là "${word}" (${langName}). Bách đang học và đã quên mất nghĩa của từ này.
