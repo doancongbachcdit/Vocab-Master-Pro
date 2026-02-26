@@ -248,19 +248,25 @@ function nextQuestion() {
                 const prompt = `Bây giờ bạn là gia sư tiếng Anh của Bách. Bách vừa ôn tập các từ vựng sau: ${wordList}. Hãy tạo ra đúng ${targetWords.length} câu hỏi giao tiếp bằng tiếng Anh thật đơn giản, ngắn gọn để Bách luyện trả lời. Mỗi câu BẮT BUỘC phải chứa 1 từ trong danh sách trên. Chỉ in ra các câu hỏi, mỗi câu 1 dòng, tuyệt đối không in thêm bất kỳ chữ nào khác.`;
 
                 // 4. Gọi API
-                fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 })
-                .then(response => response.json())
+                .then(async response => {
+                    const data = await response.json();
+                    // Nếu Google báo lỗi (404, 400...), ném lỗi ra để bắt
+                    if (!response.ok) throw new Error(data.error?.message || "Lỗi máy chủ Google API");
+                    return data;
+                })
                 .then(data => {
-                    const aiText = data.candidates[0].content.parts[0].text;
-                    const questions = aiText.split('\n').filter(q => q.trim().length > 0); // Tách thành từng dòng
+                    // Tránh lỗi undefined nếu AI trả về rỗng
+                    if (!data.candidates || !data.candidates[0]) throw new Error("AI không trả về kết quả.");
                     
-                    qContainer.innerHTML = ''; // Xóa chữ "đang suy nghĩ..."
+                    const aiText = data.candidates[0].content.parts[0].text;
+                    const questions = aiText.split('\n').filter(q => q.trim().length > 0);
+                    
+                    qContainer.innerHTML = ''; 
                     questions.forEach((q, idx) => {
                          qContainer.innerHTML += `
                             <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: left;">
@@ -270,8 +276,8 @@ function nextQuestion() {
                     });
                 })
                 .catch(err => {
-                    console.error("Lỗi AI:", err);
-                    qContainer.innerHTML = '<p style="color: red;">Kết nối AI thất bại. Vui lòng thử lại sau.</p>';
+                    console.error("Chi tiết lỗi AI:", err);
+                    qContainer.innerHTML = `<p style="color: red;">❌ Kết nối AI thất bại: ${err.message}</p>`;
                 });
             }
             return;
